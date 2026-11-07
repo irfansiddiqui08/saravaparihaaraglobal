@@ -1,6 +1,6 @@
 /* ============================================================
    SARAVA PARIHAARA — SITE SETTINGS
-   Edit the values below in cPanel > File Manager > Edit.
+   Edit on GitHub: open this file > pencil icon > edit > Commit changes.
    No other file needs to change for these.
    ============================================================ */
 window.SP_CONFIG = {
