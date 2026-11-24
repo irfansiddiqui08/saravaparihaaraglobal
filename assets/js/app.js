@@ -56,23 +56,29 @@
 
   /* ---------- drawer ---------- */
   var drawer = document.createElement("div");
+  var PAY_ON = !!C.checkoutUrl;
   drawer.innerHTML =
     '<div class="drawer-bg" data-close></div>' +
     '<aside class="drawer" role="dialog" aria-modal="true" aria-label="Your cart">' +
     '<div class="drawer-head"><h3>Your cart</h3><button class="x" data-close aria-label="Close cart">&times;</button></div>' +
     '<div class="drawer-body" id="cartItems"></div>' +
     '<div class="drawer-foot" id="cartFoot">' +
-    '<div class="total"><span>Total (MRP, incl. taxes)</span><span id="cartTotal">₹0</span></div>' +
-    '<button class="btn btn-primary btn-block" id="toCheckout" type="button">Checkout on WhatsApp</button>' +
+    '<div class="subline"><span>Shipping</span><span class="free">FREE</span></div>' +
+    '<div class="total"><span>Total (incl. taxes)</span><span id="cartTotal">\u20B90</span></div>' +
+    '<button class="btn btn-primary btn-block" id="toCheckout" type="button">Checkout</button>' +
     '<form class="checkout" id="checkoutForm" novalidate>' +
-    '<p class="small" style="margin:0">Fill in your details. WhatsApp opens with your order ready to send. Our team confirms payment and delivery there.</p>' +
+    '<p class="small" style="margin:0">Delivery details</p>' +
     '<input id="co-name" placeholder="Full name *" autocomplete="name" required>' +
     '<input id="co-phone" placeholder="Mobile number *" inputmode="tel" autocomplete="tel" required>' +
-    '<textarea id="co-address" placeholder="Full delivery address *" autocomplete="street-address" required></textarea>' +
-    '<input id="co-pin" placeholder="City & PIN code *" required>' +
+    '<input id="co-email" type="email" placeholder="Email (for payment receipt)" autocomplete="email">' +
+    '<textarea id="co-address" placeholder="House no., street, area, landmark *" autocomplete="street-address" required></textarea>' +
+    '<div class="co-row"><input id="co-city" placeholder="City *" autocomplete="address-level2" required><input id="co-pin" placeholder="PIN code *" inputmode="numeric" maxlength="6" autocomplete="postal-code" required></div>' +
     '<input id="co-note" placeholder="Note (optional)">' +
-    '<p class="small" id="co-err" style="color:#a3361b;margin:0" hidden>Please fill in name, mobile, address and city/PIN.</p>' +
-    '<a class="btn btn-wa btn-block" id="sendOrder" href="#" target="_blank" rel="noopener">Send order on WhatsApp</a>' +
+    '<p class="small co-err" id="co-err" role="alert" hidden></p>' +
+    (PAY_ON ? '<button class="btn btn-primary btn-block" id="payNow" type="button">Pay online securely</button>' +
+      '<p class="small pay-note">UPI · Cards · Netbanking · Wallets, secured by Razorpay</p>' +
+      '<div class="or"><span>or</span></div>' : '') +
+    '<a class="btn ' + (PAY_ON ? 'btn-ghost' : 'btn-wa') + ' btn-block" id="sendOrder" href="#" target="_blank" rel="noopener">' + (PAY_ON ? 'Order on WhatsApp (Cash on Delivery)' : 'Send order on WhatsApp') + '</a>' +
     '</form></div></aside>';
   document.body.appendChild(drawer);
   var toastEl = document.createElement("div"); toastEl.className = "toast"; toastEl.setAttribute("role", "status"); document.body.appendChild(toastEl);
@@ -100,7 +106,7 @@
         '<button class="remove" data-rm="' + k + '">Remove</button></div><b>' + inr(p.price * c[k]) + '</b></div>';
     }).join("");
     $("#cartTotal").textContent = inr(total(c));
-    updateWa();
+    updateWa(); if (typeof setPayLabel === "function") setPayLabel();
   }
   drawer.addEventListener("click", function (e) {
     var t = e.target, c = load();
@@ -110,23 +116,83 @@
   });
   $("#toCheckout").addEventListener("click", function () {
     $("#checkoutForm").classList.add("show"); this.style.display = "none"; $("#co-name").focus();
-    track("InitiateCheckout", { value: total(load()), currency: "INR" });
+    track("InitiateCheckout", { value: total(load()), currency: "INR", num_items: count(load()) });
   });
-  function v(id) { return ($("#" + id).value || "").trim(); }
-  function orderText() {
+  function v(id) { var el = $("#" + id); return el ? (el.value || "").trim() : ""; }
+  function orderText(extra) {
     var c = load(), i = 0, lines = ["Hello Sarava Parihaara, I would like to place an order:", ""];
     Object.keys(c).forEach(function (k) { if (P[k]) { i++; lines.push(i + ". " + P[k].name + " (" + P[k].size + ") x " + c[k] + " = " + inr(P[k].price * c[k])); } });
-    lines.push("", "Total: " + inr(total(c)), "", "Name: " + v("co-name"), "Mobile: " + v("co-phone"), "Address: " + v("co-address"), "City / PIN: " + v("co-pin"));
+    lines.push("", "Total: " + inr(total(c)) + " (free shipping)", "", "Name: " + v("co-name"), "Mobile: " + v("co-phone"));
+    if (v("co-email")) lines.push("Email: " + v("co-email"));
+    lines.push("Address: " + v("co-address"), "City: " + v("co-city"), "PIN: " + v("co-pin"));
     if (v("co-note")) lines.push("Note: " + v("co-note"));
+    if (extra) lines.push("", extra);
     return lines.join("\n");
   }
-  function updateWa() { var a = $("#sendOrder"); if (a) a.href = "https://wa.me/" + C.whatsapp + "?text=" + encodeURIComponent(orderText()); }
-  $("#checkoutForm").addEventListener("input", updateWa);
+  function updateWa() { var a = $("#sendOrder"); if (a) a.href = "https://wa.me/" + C.whatsapp + "?text=" + encodeURIComponent(orderText(PAY_ON ? "Payment: Cash on Delivery" : "")); }
+  function checkDetails() {
+    var err = "";
+    if (v("co-name").length < 2) err = "Please enter your full name.";
+    else if (!/^(?:\+?91|0)?[6-9]\d{9}$/.test(v("co-phone").replace(/[\s-]/g, ""))) err = "Please enter a valid 10-digit mobile number.";
+    else if (v("co-email") && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v("co-email"))) err = "Please check your email address.";
+    else if (v("co-address").length < 8) err = "Please enter your full delivery address.";
+    else if (v("co-city").length < 2) err = "Please enter your city.";
+    else if (!/^[1-9]\d{5}$/.test(v("co-pin"))) err = "Please enter a valid 6-digit PIN code.";
+    var box = $("#co-err"); box.textContent = err; box.hidden = !err;
+    return !err;
+  }
+  $("#checkoutForm").addEventListener("input", function () { updateWa(); if (!$("#co-err").hidden) checkDetails(); });
   $("#sendOrder").addEventListener("click", function (e) {
-    var ok = v("co-name") && v("co-phone").replace(/\D/g, "").length >= 10 && v("co-address") && v("co-pin");
-    if (!ok) { e.preventDefault(); $("#co-err").hidden = false; return; }
-    $("#co-err").hidden = true; updateWa();
+    if (!checkDetails()) { e.preventDefault(); return; }
+    updateWa();
     track("Lead", { content_category: "whatsapp_order", value: total(load()), currency: "INR" });
+  });
+
+  /* ---------- online payment (Razorpay) ---------- */
+  function loadRazorpay() {
+    if (window.Razorpay) return Promise.resolve();
+    return new Promise(function (ok, fail) {
+      var sc = document.createElement("script"); sc.src = "https://checkout.razorpay.com/v1/checkout.js";
+      sc.onload = ok; sc.onerror = function () { fail(new Error("load")); }; document.head.appendChild(sc);
+    });
+  }
+  var payBtn = $("#payNow");
+  function setPayLabel() { if (payBtn && !payBtn.disabled) payBtn.textContent = "Pay " + inr(total(load())) + " online securely"; }
+  function payBusy(on) { if (!payBtn) return; payBtn.disabled = on; if (on) payBtn.textContent = "Opening secure payment…"; else setPayLabel(); }
+  function showErr(m) { var box = $("#co-err"); box.textContent = m; box.hidden = false; }
+  if (payBtn) payBtn.addEventListener("click", function () {
+    if (!checkDetails()) return;
+    var c = load(), items = Object.keys(c).filter(function (k) { return P[k]; }).map(function (k) { return { id: k, qty: c[k] }; });
+    if (!items.length) return;
+    var customer = { name: v("co-name"), phone: v("co-phone"), email: v("co-email"), address: v("co-address"), city: v("co-city"), pincode: v("co-pin"), note: v("co-note") };
+    payBusy(true);
+    track("AddPaymentInfo", { value: total(c), currency: "INR" });
+    Promise.all([
+      fetch(C.checkoutUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: items, customer: customer }) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok || !j.order_id) throw new Error(j.error || "start"); return j; }); }),
+      loadRazorpay()
+    ]).then(function (res) {
+      var o = res[0];
+      var rzp = new window.Razorpay({
+        key: o.key_id, order_id: o.order_id, amount: o.amount, currency: o.currency || "INR",
+        name: "Sarava Parihaara", description: o.lines.map(function (l) { return l.name + " x" + l.qty; }).join(", ").slice(0, 250),
+        image: location.origin + "/assets/img/logo.png",
+        prefill: { name: customer.name, email: customer.email, contact: customer.phone },
+        theme: { color: "#3b2014" },
+        modal: { ondismiss: function () { payBusy(false); } },
+        handler: function (resp) {
+          var last = { order: o.order_id, payment: resp.razorpay_payment_id, total: o.total, lines: o.lines, customer: customer };
+          try { sessionStorage.setItem("sp_last_order", JSON.stringify(last)); } catch (e) {}
+          save({});
+          location.href = "thank-you.html?payment=" + encodeURIComponent(resp.razorpay_payment_id || "") + "&amount=" + o.total;
+        }
+      });
+      rzp.on("payment.failed", function (r) { payBusy(false); showErr("Payment failed: " + ((r.error && r.error.description) || "please try again") + ". No money was taken. You can retry, or order on WhatsApp."); });
+      rzp.open();
+    }).catch(function (e) {
+      payBusy(false);
+      showErr(e && e.message && e.message !== "start" && e.message !== "load" && e.message !== "Failed to fetch" ? e.message : "Online payment couldn't start. Please check your internet and try again, or order on WhatsApp.");
+    });
   });
 
   /* ---------- add-to-cart buttons ---------- */

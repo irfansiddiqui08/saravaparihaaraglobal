@@ -22,6 +22,10 @@ window.SP_CONFIG = {
   // e.g. "https://formspree.io/f/abcdwxyz". Leave "" and forms send details on WhatsApp instead.
   formEndpoint: "",
 
+  // ONLINE PAYMENT (Razorpay). Address of the "shop-order" backend function.
+  // Leave "" to switch online payment off (cart then offers WhatsApp ordering only).
+  checkoutUrl: "",
+
   // Social links. Leave "" to hide an icon.
   instagram: "",
   facebook: "",
