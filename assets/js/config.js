@@ -24,7 +24,7 @@ window.SP_CONFIG = {
 
   // ONLINE PAYMENT (Razorpay). Address of the "shop-order" backend function.
   // Leave "" to switch online payment off (cart then offers WhatsApp ordering only).
-  checkoutUrl: "",
+  checkoutUrl: "https://mtcvkfyxxkurinfloazu.supabase.co/functions/v1/shop-order",
 
   // Social links. Leave "" to hide an icon.
   instagram: "",
